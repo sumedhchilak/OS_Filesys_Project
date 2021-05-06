@@ -1,0 +1,86 @@
+Project 4: Group Reflections Document
+Due Friday, April 30, 2021, at 10:59p
+Please submit one per group to the "Project 4 Reflections" assignment on Canvas
+
+
+Names: Carson Saldanha, Charles Cao, Eric Tu, Sumedh Chilakamarri
+EIDs: ccs3424, cbc2776, ekt452, ssc2536
+Group Name: Shorty got a FAT Filesys
+
+If you could eat at one place for the rest of your life, where would it be?
+Mod Pizza, J2, Wendy's, Chipotle
+
+
+
+What did your group do well this week?
+We took the time to plan out many parts of the implementation early. This
+greatly helped us in setting up the foundations for our project. We also
+completed our new syscall functions as well as parts of filesys and inode.
+
+
+
+
+
+
+
+What do you not do well?
+We started on the assignment a little late because we needed a few days
+of rest after completing Project 3. Therefore, our time management was a
+slightly hindered.
+
+
+
+
+
+
+
+How could you improve?
+We will make sure to devote an adequate amount of time to the project over the
+weekend and over the course of next week to get up to pace before the
+deadline.
+
+
+
+
+
+
+
+How well did your group communicate?  Describe any problems and potential 
+solutions.
+Communication as a group has gone smoothly. We've responded to messages in a
+timely manner. We haven't really notice any major problems with our
+communication. Overall, it's been pretty good.
+
+
+
+
+
+
+
+How well did you share programming time and collaborate on the design?  
+Describe any problems and potential solutions.
+We think design ideas and implementations were split evenly among the group
+members without any problems.
+
+
+
+
+
+
+
+What are your next steps?
+Our next steps are to meet more regularly in order to finish our implementing
+filesys and inode. We also plan on looking for more information about file
+system concepts from any lectures as well as make more use of Piazza if we
+hit any roadblocks.
+
+
+
+
+
+
+
+When are you meeting next week?
+Saturday around 2pm
+Sunday around 8pm
+Monday around 8pm
