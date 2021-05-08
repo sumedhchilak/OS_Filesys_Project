@@ -39,35 +39,35 @@ using the Linux command wc.  (Note that rtf files are NOT text files.)
 >> Fill your names, UT EIDs, CS logins, email addresses, and unique numbers:
 
 
-Name:
-EID:
-CS login:
-Email:
-Unique Number:
+Name: Carson Saldanha
+EID: ccs3424
+CS login: saldanha
+Email: csaldanha@utexas.edu
+Unique Number: 52455
 
 
-Name:
-EID:
-CS login:
-Email:
-Unique Number:
+Name: Eric Tu
+EID: ekt452
+CS login: ekt452
+Email: tryeric10@gmail.com
+Unique Number: 52465
 
 
-Name:
-EID:
-CS login:
-Email:
-Unique Number:
+Name: Charles Cao
+EID: cbc2776
+CS login: charlesc
+Email: ccao2776@gmail.com
+Unique Number: 52460
 
 
-Name:
-EID:
-CS login:
-Email:
-Unique Number:
+Name: Sumedh Chilakamarri
+EID: ssc2536
+CS login: sumedh00
+Email: sumedh.chilak@utexas.edu
+Unique Number: 52465
 
 
-Slip days used on this project:
+Slip days used on this project: 0
 
 
 
@@ -102,9 +102,74 @@ Slip days used on this project:
 >> enumeration that was necessary for your indexed and extensible file
 >> implementation.  Identify the purpose of each in 25 words or less.
 
+/* Constants Defined in inode.h [line 14-25] */
+
+#define DIRECT_CNT 10               /* Number of Direct Blocks */
+#define INDIRECT_CNT 1              /* Number of Indirect Blocks */
+#define DOUBLY_INDIRECT_CNT 1       /* Number of Doubly Indirect Blocks */
+
+#define INDIRECT_INDEX 10           /* Index of Indirect Block */
+#define DOUBLY_INDIRECT_INDEX 11    /* Index of Doubly Indirect Block */
+
+/* Number of pointers a Singly Indirect Block stores */
+#define IND_BLK_PTR_CNT \
+    (block_sector_t) (BLOCK_SECTOR_SIZE / sizeof (block_sector_t))
+    
+/* Number of pointers a Doubly Indirect Block stores */
+#define DBL_IND_BLK_PTR_CNT IND_BLK_PTR_CNT * IND_BLK_PTR_CNT
+
+
+
+/* Altered three fields in inode_disk struct [inode.h line 34-36] */
+
+struct inode_disk
+  {            
+    ... // moved to inode.h
+  };
+
+/* Supports Multilevel indexing in the FFS Filesystem [inode.h line 34] */
+block_sector_t blocks[DIRECT_CNT + INDIRECT_CNT + DOUBLY_INDIRECT_CNT];
+
+bool is_dir;                        /* tracks if inode is a directory 
+                                                    [inode.h line 35] */
+uint32_t unused[113];               /* Not used. (125-10-1-1) = 113 
+                                                    [inode.h line 36] */
+
+
+/* Altered one field of inode struct [inode.h line 48] */
+struct inode
+  {
+    ... // mode to inode.h
+  };
+
+struct lock inode_lock;             /* lock for the in-memory inode
+                                                    [inode.h line 48] */
+
+
 
 >> A2: What is the maximum size of a file supported by your inode
 >> structure?  Show your work.
+
+We have 10 direct blocks. Direct Blocks represent 512 bytes worth of data. 
+512 bytes * 10 = 5,120 bytes of file data is allocated directly to blocks 0-9.
+
+We have 1 indirect block that holds 128 direct block pointers.
+# direct block pointers (128) = BLOCK_SECTOR_SIZE (512 bytes) 
+                                        / sizeof (block_sector_t) (4 bytes)
+1 indirect block can represent 65,536 bytes worth of data.
+128 direct block pointers * 512 bytes = 65,536 bytes of file data.
+
+We have 1 doubly indirect block that holds 128 * 128 direct block pointers, or
+128 pointers to 128 indirect blocks.
+Indirect Blocks have 128 pointers to direct blocks.
+(128^2) direct block pointers * 512 bytes = 8388608 bytes of file data.
+
+Direct Blocks (5,120 bytes) + Indirect Block (65,536 bytes) 
+            + Doubly Indirect Block (8388608 bytes) = 8459264 bytes
+
+The maximum size file our implementation supports is 8459264 bytes,
+        which is roughly 8.4 MB, and supports file growth past 8MB.
+
 
 
 ---- SYNCHRONIZATION ----
@@ -112,6 +177,11 @@ Slip days used on this project:
 
 >> A3: Explain how your code avoids a race if two processes attempt to
 >> extend a file at the same time.
+
+Each inode has an inode_lock field [inode.h line 48]. When checking
+if a file needs to be extended, we call lock_acquire() on that inode's
+lock [inode.c line 552]. Whether the extension was successful or not, we
+also call lock_release() on the lock [inode.c lines 557 and 560].
 
 
 >> A4: Suppose processes A and B both have file F open, both
@@ -121,6 +191,12 @@ Slip days used on this project:
 >> nonzero data, A is not allowed to see all zeros.  Explain how your
 >> code avoids this race.
 
+If an inode write is at the EOF, then that means we need to extend.
+We make sure to check the length and see if it needs growth in inode_write_at().
+[inode.c line 549] This will not cause the read to mess up and read more than
+it actually should because the blocks are updated before the length is updated.
+In inode_read_at(), the amount it read is based on the length. Therefore, the
+process won't have access to the new blocks until we update the length.
 
 
 
@@ -131,7 +207,21 @@ Slip days used on this project:
 >> one or many processes writing to a file cannot forever prevent
 >> another process from reading the file.
 
+Processes reading from a file will not prevent a process from writing
+to the file. Writes within the length bounds will not block the process;
+conversely, writes that require growth will acquire the inode_lock if and only
+if the process is writing to the file AND requires growth. 
+[inode.c line 552-560]
 
+In hindsight, we should've added some sort of synchronization for updating
+the inode metadata for length when size that exceeded the read bounds
+occured, something similar to what we have for inode_read.
+
+In our currently implementation, after a file is extended and
+if a process is reading and writing (which requires growth in this case),
+the outcome of that read is variable. Should've added @ [inode.c line 488]
+
+Processes are still unblocked in FIFO order, so we ensure fairness.
 
 
 
@@ -149,9 +239,26 @@ Slip days used on this project:
 >> In your explanation, include at least two reasons to support your 
 >> choices.
 
+Yes, our file layout is a multilevel indexed structure modeled after the FFS.
+We chose a layout of 10 direct block, 1 indirect block, and 1 doubly indirect
+block.
 
+Reason One:
+We used more direct blocks because we wanted our implementation to have
+faster access for small files because most of an average user's files are
+actually small in size. Access is fast for a smaller file because of the
+direct pointer the inode stores to the datablocks on disk.
 
+Reason Two:
+We chose 1 indirect and 1 doubly indirect block which
+gives users decent access time to both medium and large file sizes. While 
+indirect blocks are slower to read from disk than direct blocks, they
+are still much better than doubly indirect blocks, especially if it is
+a medium-sized file.
 
+In a real-life enviroment, we would have allocated more indirect and
+doubly indirect blocks to the filesystem. In Pintos, we didn't think we
+would run the risk of indirect blocks on disk being corrupted.
 
 
                             SUBDIRECTORIES
@@ -166,12 +273,49 @@ Slip days used on this project:
 >> enumeration that was necessary for your subdirectory 
 >> implementation.  Identify the purpose of each in 25 words or less.
 
+[thread.h line 112]
+struct thread
+    struct inode *i_dir;    /* Current working directory */
+
+[file.h line 13]
+struct file
+    struct dir *file_dir;       /* Used if file is directory. */
+
+[inode.h lines 34-35]
+struct inode_disk
+    // All direct, indirect, and doubly indirect blocks together.
+    block_sector_t blocks[DIRECT_CNT + INDIRECT_CNT + DOUBLY_INDIRECT_CNT];
+
+    bool is_dir;                /* Indicates if a directory. */
+
+[inode.h line 48]
+struct inode
+    // Used to lock and ensure synchronization for inode actions
+    struct lock inode_lock;
+
+
+
+
 
 ---- ALGORITHMS ----
 
 
 >> B2: Describe your code for traversing a user-specified path.  How
 >> do traversals of absolute and relative paths differ?
+
+First we turn the path into a string array of tokens delimited by newlines 
+and '/' which is in get_paths(). Then we check if the first
+element is '/' and if it is that we know its absolute and add that to the
+string array. [filesys.c 279]
+
+For traversals we verify whether the path is absolute or not by seeing iF
+the first element is the root. [filesys.c 339] If it is the we start the
+lookup from the root otherwise we start from the cwd.[filesys.c 343]
+Then we traverse through until path_size -1 directories. [filesys.c 352]
+Additionally, for parent/current directories, these are added as individual
+directories elements in dir _create, in order to keep our tree like structure.
+[directory.c 23]
+
 
 
 ---- SYNCHRONIZATION ----
@@ -182,6 +326,19 @@ Slip days used on this project:
 >> should succeed, as should only one of two simultaneous attempts to
 >> create a file with the same name, and so on.
 
+We ensure that only one proccess can lookup and change a directory. We use
+a global lock called "dir_lock" that locks when these types of actions happen.
+[directory.c 15] This lock is used throughout the code ensuring to lock when
+we do actions such as removing or creating. This allows two smultaneous
+attemps since we have that lock that synchronizes between commands.
+
+Specifically for creating, it is locked in filesys_create.
+[filesys.c line 72]
+
+Removing files [filesys.c line 112]
+
+We use the locking in many other places pretty much any time we do a lookup.
+
 
 >> B4: Does your implementation allow a directory to be removed if it
 >> is open by a process or if it is in use as a process's current
@@ -189,8 +346,15 @@ Slip days used on this project:
 >> file system operations?  If that’s not allowed, how do you
 >> prevent it?
 
-
-
+Our implementation prevents a directory from being removed if it is open
+by a process or if it's in use by the process's current working directory
+(CWD). When determining whether the directory can be removed, we had a 
+conditional statement to check whether the inode is directory and whether
+the inode open_cnt is greater than 1. [directory.c 225]. 
+If one of those conditions fail, the directory is prevented from being removed.
+A dir_lock was also utilized to provide synchronization when dir_remove is
+called, [filesys.c 112 - 114] preventing another process from opening the inode
+currently referenced and ensuring that open_cnt stays the same.
 
 
 
@@ -200,6 +364,19 @@ Slip days used on this project:
 >> B5: What type of variable/structure did you use to represent the 
 >> current directory of a process?   Why did you choose this 
 >> representation?  Give at least two reasons.
+
+We added an inode field to our thread struct, i_dir, to represent the cwd. 
+[thread.h line 112] We chose an inode as the metadata because of the behavior
+of how a cwd should act. There is no need to keep track of the current position
+like a directory would, therefore it would just be wasted space. By nature cwd
+should only be able to be used for relative paths and a directory should only be
+accessed when needed which would be operations that directly relate to
+directories.
+
+Furthermore, we check whether we can remove directory by open_cnt. 
+[directory.c 225] This is possible thanks to inode being a meta data and it
+is able to always keep track of the open_cnt when actions do happen such as
+inode_reopen where open_cnt is incremented. [inode.c 364]
 
 
 
@@ -218,6 +395,15 @@ the quarter.
 >> In your opinion, was this assignment, or any one of the three problems
 >> in it, too easy or too hard?  Did it take too long or too little time?
 
+Synchronization was and still is a huge issue for our project.
+I believe that we have some bad synchronization within our inode.c file.
+We ran out of time for this, but we believe that adding locks for
+the open_inodes in the system and length/other metadata locks might
+have helped us to resolve this.
+
+The tests we are failing all fail at inode_close(). We do believe
+we could've fixed this issue with synchronization of the open inodes,
+but we ran out of time.
 
 >> Did you find that working on a particular part of the assignment gave
 >> you greater insight into some aspect of OS design?
@@ -234,3 +420,4 @@ the quarter.
 
 >> Any other comments?
 
+oof, we're a bit burned out.
